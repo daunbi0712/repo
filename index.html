@@ -1,1 +1,696 @@
-<h1>profile</h1>
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>가계부</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@500;700;900&family=Noto+Sans+KR:wght@400;500;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --paper:#F1F4EA;
+    --paper-deep:#E7ECDD;
+    --line:#C7D3BC;
+    --line-soft:#D8E0CC;
+    --ink:#20301F;
+    --ink-soft:#5B6B57;
+    --stamp:#B23A2E;
+    --stamp-soft:#E8B5AC;
+    --income:#2F6F4E;
+    --income-soft:#CFE3D6;
+    --brass:#A9812E;
+    --paper-white:#FAFCF6;
+    --shadow: 0 1px 0 rgba(32,48,31,0.06);
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--paper);
+    background-image:
+      linear-gradient(var(--line-soft) 1px, transparent 1px);
+    background-size: 100% 40px;
+    color:var(--ink);
+    font-family:'Noto Sans KR', sans-serif;
+    min-height:100vh;
+    padding: 28px 16px 80px;
+  }
+  .binder{
+    position:fixed;
+    left:0; top:0; bottom:0;
+    width:34px;
+    background:linear-gradient(180deg, #DDE6D0, #CBD8BC);
+    border-right:2px solid var(--line);
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    padding-top:60px;
+    gap:44px;
+    z-index:0;
+  }
+  .binder .hole{
+    width:12px;height:12px;border-radius:50%;
+    background:var(--paper);
+    box-shadow: inset 0 1px 3px rgba(0,0,0,0.25);
+  }
+  @media (max-width:640px){ .binder{display:none;} }
+
+  .wrap{
+    max-width:760px;
+    margin:0 auto;
+    padding-left: 40px;
+    position:relative;
+  }
+  @media (max-width:640px){ .wrap{padding-left:0;} }
+
+  header{
+    display:flex;
+    justify-content:space-between;
+    align-items:flex-end;
+    border-bottom: 3px double var(--ink);
+    padding-bottom:14px;
+    margin-bottom:22px;
+  }
+  header h1{
+    font-family:'Noto Serif KR', serif;
+    font-weight:900;
+    font-size:30px;
+    margin:0;
+    letter-spacing:1px;
+  }
+  header .month-nav{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    font-family:'JetBrains Mono', monospace;
+    font-size:14px;
+    color:var(--ink-soft);
+  }
+  header .month-nav button{
+    background:none;border:1px solid var(--line);
+    border-radius:4px;
+    width:26px;height:26px;
+    cursor:pointer;
+    color:var(--ink);
+    font-size:14px;
+  }
+  header .month-nav button:hover{background:var(--paper-deep);}
+  header .month-label{
+    font-weight:700;
+    color:var(--ink);
+    min-width:82px;
+    text-align:center;
+  }
+
+  .summary{
+    display:grid;
+    grid-template-columns:repeat(3,1fr);
+    gap:1px;
+    background:var(--line);
+    border:1px solid var(--line);
+    margin-bottom:26px;
+  }
+  .summary .cell{
+    background:var(--paper-white);
+    padding:16px 14px;
+    text-align:center;
+  }
+  .summary .cell .label{
+    font-size:12px;
+    color:var(--ink-soft);
+    letter-spacing:2px;
+    margin-bottom:6px;
+  }
+  .summary .cell .value{
+    font-family:'JetBrains Mono', monospace;
+    font-weight:700;
+    font-size:19px;
+    font-variant-numeric: tabular-nums;
+  }
+  .summary .income .value{color:var(--income);}
+  .summary .expense .value{color:var(--stamp);}
+  .summary .balance .value{color:var(--ink);}
+
+  .panel-title{
+    font-family:'Noto Serif KR', serif;
+    font-weight:700;
+    font-size:15px;
+    color:var(--ink);
+    margin:0 0 10px;
+    display:flex;
+    align-items:center;
+    gap:8px;
+  }
+  .panel-title::before{
+    content:"";
+    width:6px;height:6px;
+    background:var(--stamp);
+    display:inline-block;
+    transform:rotate(45deg);
+  }
+
+  form.entry{
+    background:var(--paper-white);
+    border:1px solid var(--line);
+    padding:16px;
+    margin-bottom:26px;
+  }
+  .entry-grid{
+    display:grid;
+    grid-template-columns: 110px 90px 1fr 120px;
+    gap:8px;
+    margin-bottom:8px;
+  }
+  @media (max-width:640px){ .entry-grid{grid-template-columns:1fr 1fr;} }
+
+  .entry input, .entry select{
+    width:100%;
+    padding:9px 10px;
+    border:1px solid var(--line);
+    background:var(--paper);
+    color:var(--ink);
+    font-family:'Noto Sans KR', sans-serif;
+    font-size:13.5px;
+    border-radius:2px;
+  }
+  .entry input[name="amount"]{font-family:'JetBrains Mono', monospace;}
+  .entry input:focus, .entry select:focus{
+    outline:none;
+    border-color:var(--ink);
+  }
+  .type-toggle{
+    display:flex;
+    border:1px solid var(--line);
+    border-radius:2px;
+    overflow:hidden;
+  }
+  .type-toggle button{
+    flex:1;
+    border:none;
+    background:var(--paper);
+    padding:9px 4px;
+    font-size:13px;
+    cursor:pointer;
+    color:var(--ink-soft);
+    font-weight:500;
+  }
+  .type-toggle button.active[data-type="expense"]{background:var(--stamp);color:#fff;}
+  .type-toggle button.active[data-type="income"]{background:var(--income);color:#fff;}
+
+  .entry-row2{
+    display:flex;
+    gap:8px;
+  }
+  .entry-row2 input[name="memo"]{flex:1;}
+  .entry-row2 button.submit{
+    background:var(--ink);
+    color:var(--paper-white);
+    border:none;
+    padding:0 20px;
+    font-size:13.5px;
+    font-weight:700;
+    cursor:pointer;
+    border-radius:2px;
+    letter-spacing:1px;
+  }
+  .entry-row2 button.submit:hover{background:#0f1a0e;}
+
+  .ledger{
+    background:var(--paper-white);
+    border:1px solid var(--line);
+    margin-bottom:22px;
+  }
+  .ledger .row{
+    display:grid;
+    grid-template-columns: 56px 78px 1fr 110px 30px;
+    align-items:center;
+    padding:10px 14px;
+    border-bottom:1px dashed var(--line-soft);
+    gap:10px;
+    font-size:13.5px;
+  }
+  .ledger .row:last-child{border-bottom:none;}
+  .ledger .row.head{
+    font-weight:700;
+    color:var(--ink-soft);
+    font-size:11px;
+    letter-spacing:1px;
+    border-bottom:1px solid var(--ink);
+    padding:8px 14px;
+  }
+  .ledger .date{
+    font-family:'JetBrains Mono', monospace;
+    color:var(--ink-soft);
+    font-size:12px;
+  }
+  .stamp-tag{
+    display:inline-block;
+    font-size:11px;
+    font-weight:700;
+    padding:2px 8px;
+    border:1.5px solid var(--stamp);
+    color:var(--stamp);
+    border-radius:20px;
+    transform:rotate(-2deg);
+    white-space:nowrap;
+  }
+  .stamp-tag.income{border-color:var(--income);color:var(--income);}
+  .ledger .item-name{color:var(--ink);}
+  .ledger .item-memo{color:var(--ink-soft);font-size:11.5px;display:block;}
+  .ledger .amount{
+    font-family:'JetBrains Mono', monospace;
+    font-weight:700;
+    text-align:right;
+    font-variant-numeric: tabular-nums;
+  }
+  .ledger .amount.expense{color:var(--stamp);}
+  .ledger .amount.income{color:var(--income);}
+  .ledger .del{
+    background:none;border:none;
+    color:var(--line);
+    cursor:pointer;
+    font-size:16px;
+    text-align:center;
+  }
+  .ledger .del:hover{color:var(--stamp);}
+  .empty{
+    padding:36px 14px;
+    text-align:center;
+    color:var(--ink-soft);
+    font-size:13.5px;
+  }
+
+  .category-summary{
+    display:flex;
+    flex-wrap:wrap;
+    gap:8px;
+    margin-bottom:26px;
+  }
+  .category-summary .bar-item{
+    background:var(--paper-white);
+    border:1px solid var(--line);
+    padding:8px 12px;
+    font-size:12px;
+    min-width:110px;
+    flex:1;
+  }
+  .category-summary .bar-item .top{
+    display:flex;justify-content:space-between;
+    margin-bottom:5px;
+    color:var(--ink-soft);
+  }
+  .category-summary .bar-item .top b{color:var(--ink);font-weight:700;}
+  .category-summary .bar-track{
+    height:5px;background:var(--paper-deep);border-radius:3px;overflow:hidden;
+  }
+  .category-summary .bar-fill{
+    height:100%;background:var(--stamp);
+  }
+
+  details.sync{
+    background:var(--paper-white);
+    border:1px solid var(--line);
+    padding:14px 16px;
+    margin-bottom:40px;
+  }
+  details.sync summary{
+    cursor:pointer;
+    font-family:'Noto Serif KR', serif;
+    font-weight:700;
+    font-size:14px;
+    color:var(--ink);
+    outline:none;
+  }
+  .sync-body{margin-top:14px;}
+  .sync-body p{
+    font-size:12.5px;
+    color:var(--ink-soft);
+    line-height:1.6;
+    margin:0 0 10px;
+  }
+  .sync-body input{
+    width:100%;
+    padding:9px 10px;
+    border:1px solid var(--line);
+    background:var(--paper);
+    font-size:13px;
+    border-radius:2px;
+    margin-bottom:10px;
+    font-family:'JetBrains Mono', monospace;
+  }
+  .sync-actions{display:flex; gap:8px; flex-wrap:wrap;}
+  .sync-actions button{
+    padding:8px 16px;
+    border:1px solid var(--ink);
+    background:var(--paper-white);
+    color:var(--ink);
+    font-size:12.5px;
+    font-weight:700;
+    cursor:pointer;
+    border-radius:2px;
+  }
+  .sync-actions button.primary{background:var(--ink);color:var(--paper-white);}
+  .sync-actions button:hover{opacity:0.85;}
+  .sync-status{
+    margin-top:10px;
+    font-size:12px;
+    color:var(--ink-soft);
+    min-height:16px;
+  }
+  .sync-status.err{color:var(--stamp);}
+  .sync-status.ok{color:var(--income);}
+
+  footer{
+    text-align:center;
+    font-size:11px;
+    color:var(--ink-soft);
+    letter-spacing:1px;
+  }
+</style>
+</head>
+<body>
+<div class="binder">
+  <div class="hole"></div><div class="hole"></div><div class="hole"></div>
+  <div class="hole"></div><div class="hole"></div><div class="hole"></div>
+  <div class="hole"></div><div class="hole"></div><div class="hole"></div>
+</div>
+
+<div class="wrap">
+  <header>
+    <h1>가계부</h1>
+    <div class="month-nav">
+      <button id="prevMonth">‹</button>
+      <span class="month-label" id="monthLabel">-</span>
+      <button id="nextMonth">›</button>
+    </div>
+  </header>
+
+  <div class="summary">
+    <div class="cell income"><div class="label">수입</div><div class="value" id="totalIncome">0원</div></div>
+    <div class="cell expense"><div class="label">지출</div><div class="value" id="totalExpense">0원</div></div>
+    <div class="cell balance"><div class="label">잔액</div><div class="value" id="totalBalance">0원</div></div>
+  </div>
+
+  <p class="panel-title">기록 추가</p>
+  <form class="entry" id="entryForm">
+    <div class="entry-grid">
+      <input type="date" name="date" required>
+      <div class="type-toggle" id="typeToggle">
+        <button type="button" data-type="expense" class="active">지출</button>
+        <button type="button" data-type="income">수입</button>
+      </div>
+      <input type="text" name="category" placeholder="카테고리 (예: 식비)" required list="catList">
+      <datalist id="catList"></datalist>
+      <input type="number" name="amount" placeholder="금액" min="0" step="1" required>
+    </div>
+    <div class="entry-row2">
+      <input type="text" name="item" placeholder="내역 (예: 점심 식사)" required>
+      <input type="text" name="memo" placeholder="메모 (선택)">
+      <button type="submit" class="submit">기록</button>
+    </div>
+  </form>
+
+  <p class="panel-title">카테고리별 지출</p>
+  <div class="category-summary" id="categorySummary"></div>
+
+  <p class="panel-title">이번 달 내역</p>
+  <div class="ledger" id="ledgerTable">
+    <div class="row head">
+      <span>날짜</span><span>구분</span><span>내역</span><span style="text-align:right">금액</span><span></span>
+    </div>
+    <div id="ledgerBody"></div>
+  </div>
+
+  <details class="sync">
+    <summary>구글 시트 연동 설정</summary>
+    <div class="sync-body">
+      <p>구글 시트에서 Apps Script를 배포한 뒤 생성되는 웹 앱 URL을 아래에 입력하세요. 아래에서 내보내면 시트에 전체 기록이 기록되고, 가져오면 시트 내용으로 이 앱의 데이터를 덮어씁니다.</p>
+      <input type="text" id="scriptUrl" placeholder="https://script.google.com/macros/s/xxxxx/exec">
+      <div class="sync-actions">
+        <button type="button" class="primary" id="saveUrlBtn">URL 저장</button>
+        <button type="button" id="exportBtn">시트로 내보내기</button>
+        <button type="button" id="importBtn">시트에서 가져오기</button>
+      </div>
+      <div class="sync-status" id="syncStatus"></div>
+    </div>
+  </details>
+
+  <footer>PAPER LEDGER · 나만의 가계부</footer>
+</div>
+
+<script>
+(function(){
+  const STORE_KEY = 'ledger:entries';
+  const URL_KEY = 'ledger:scriptUrl';
+  let entries = [];
+  let currentMonth = new Date().toISOString().slice(0,7); // YYYY-MM
+
+  const $ = (sel) => document.querySelector(sel);
+  const fmt = (n) => Math.round(n).toLocaleString('ko-KR') + '원';
+
+  // Claude.ai 아티팩트 안에서는 window.storage(클라우드 저장)를 쓰고,
+  // 파일을 다운로드해 단독으로 열었을 때는 localStorage로 자동 전환합니다.
+  const hasCloudStorage = (typeof window.storage !== 'undefined' && window.storage !== null);
+
+  async function storageGet(key){
+    if(hasCloudStorage){
+      try{
+        const res = await window.storage.get(key);
+        return res ? res.value : null;
+      }catch(e){
+        return null; // 키가 없을 때도 에러가 나므로 null로 처리
+      }
+    }
+    return window.localStorage.getItem(key);
+  }
+
+  async function storageSet(key, value){
+    if(hasCloudStorage){
+      try{
+        await window.storage.set(key, value);
+        return true;
+      }catch(e){
+        console.error('클라우드 저장 실패, localStorage로 대체:', e);
+        window.localStorage.setItem(key, value);
+        return true;
+      }
+    }
+    window.localStorage.setItem(key, value);
+    return true;
+  }
+
+  async function loadEntries(){
+    try{
+      const val = await storageGet(STORE_KEY);
+      entries = val ? JSON.parse(val) : [];
+    }catch(e){
+      entries = [];
+    }
+    render();
+  }
+
+  async function saveEntries(){
+    try{
+      await storageSet(STORE_KEY, JSON.stringify(entries));
+    }catch(e){
+      console.error('저장 실패', e);
+      setGlobalWarning('저장에 실패했습니다: ' + e.message);
+    }
+  }
+
+  async function loadUrl(){
+    const val = await storageGet(URL_KEY);
+    if(val) $('#scriptUrl').value = val;
+  }
+
+  function setGlobalWarning(msg){
+    const el = $('#syncStatus');
+    if(el){ el.textContent = msg; el.className = 'sync-status err'; }
+  }
+
+  function monthLabelText(ym){
+    const [y,m] = ym.split('-');
+    return `${y}년 ${parseInt(m)}월`;
+  }
+
+  function shiftMonth(delta){
+    const [y,m] = currentMonth.split('-').map(Number);
+    const d = new Date(y, m-1+delta, 1);
+    currentMonth = d.toISOString().slice(0,7);
+    render();
+  }
+
+  function entriesForMonth(){
+    return entries.filter(e => e.date && e.date.slice(0,7) === currentMonth)
+      .sort((a,b) => b.date.localeCompare(a.date));
+  }
+
+  function render(){
+    $('#monthLabel').textContent = monthLabelText(currentMonth);
+    const monthEntries = entriesForMonth();
+
+    let income = 0, expense = 0;
+    const catTotals = {};
+    monthEntries.forEach(e => {
+      const amt = Number(e.amount) || 0;
+      if(e.type === 'income'){ income += amt; }
+      else{
+        expense += amt;
+        catTotals[e.category] = (catTotals[e.category]||0) + amt;
+      }
+    });
+    $('#totalIncome').textContent = fmt(income);
+    $('#totalExpense').textContent = fmt(expense);
+    $('#totalBalance').textContent = fmt(income - expense);
+
+    // category bars
+    const catWrap = $('#categorySummary');
+    catWrap.innerHTML = '';
+    const sortedCats = Object.entries(catTotals).sort((a,b) => b[1]-a[1]);
+    if(sortedCats.length === 0){
+      catWrap.innerHTML = '<div class="empty" style="width:100%;padding:14px;">이번 달 지출 기록이 없습니다.</div>';
+    } else {
+      const max = sortedCats[0][1];
+      sortedCats.forEach(([cat, val]) => {
+        const div = document.createElement('div');
+        div.className = 'bar-item';
+        div.innerHTML = `<div class="top"><span>${cat}</span><b>${fmt(val)}</b></div>
+          <div class="bar-track"><div class="bar-fill" style="width:${(val/max*100).toFixed(0)}%"></div></div>`;
+        catWrap.appendChild(div);
+      });
+    }
+
+    // ledger rows
+    const body = $('#ledgerBody');
+    body.innerHTML = '';
+    if(monthEntries.length === 0){
+      body.innerHTML = '<div class="empty">아직 기록이 없어요. 위에서 첫 기록을 추가해보세요.</div>';
+    } else {
+      monthEntries.forEach(e => {
+        const row = document.createElement('div');
+        row.className = 'row';
+        const dateShort = e.date.slice(5).replace('-','/');
+        row.innerHTML = `
+          <span class="date">${dateShort}</span>
+          <span><span class="stamp-tag ${e.type}">${e.category}</span></span>
+          <span><span class="item-name">${e.item}</span>${e.memo ? `<span class="item-memo">${e.memo}</span>` : ''}</span>
+          <span class="amount ${e.type}">${e.type === 'income' ? '+' : '-'}${fmt(e.amount)}</span>
+          <button class="del" data-id="${e.id}" title="삭제">×</button>
+        `;
+        body.appendChild(row);
+      });
+    }
+
+    // category datalist
+    const cats = [...new Set(entries.map(e => e.category))];
+    $('#catList').innerHTML = cats.map(c => `<option value="${c}">`).join('');
+  }
+
+  // type toggle
+  let currentType = 'expense';
+  $('#typeToggle').addEventListener('click', (ev) => {
+    const btn = ev.target.closest('button');
+    if(!btn) return;
+    currentType = btn.dataset.type;
+    document.querySelectorAll('#typeToggle button').forEach(b => b.classList.toggle('active', b === btn));
+  });
+
+  // form submit
+  $('#entryForm').addEventListener('submit', async (ev) => {
+    ev.preventDefault();
+    const f = ev.target;
+    const entry = {
+      id: 'e' + Date.now() + Math.random().toString(36).slice(2,6),
+      date: f.date.value,
+      type: currentType,
+      category: f.category.value.trim(),
+      item: f.item.value.trim(),
+      amount: Number(f.amount.value),
+      memo: f.memo.value.trim()
+    };
+    entries.push(entry);
+    await saveEntries();
+    currentMonth = entry.date.slice(0,7);
+    f.reset();
+    f.date.value = entry.date;
+    render();
+  });
+
+  // delete
+  $('#ledgerBody').addEventListener('click', async (ev) => {
+    const btn = ev.target.closest('.del');
+    if(!btn) return;
+    entries = entries.filter(e => e.id !== btn.dataset.id);
+    await saveEntries();
+    render();
+  });
+
+  // month nav
+  $('#prevMonth').addEventListener('click', () => shiftMonth(-1));
+  $('#nextMonth').addEventListener('click', () => shiftMonth(1));
+
+  // default date = today
+  $('#entryForm').date.value = new Date().toISOString().slice(0,10);
+
+  // ---- Google Sheets sync ----
+  const statusEl = $('#syncStatus');
+  function setStatus(msg, cls){
+    statusEl.textContent = msg;
+    statusEl.className = 'sync-status' + (cls ? ' ' + cls : '');
+  }
+
+  $('#saveUrlBtn').addEventListener('click', async () => {
+    const url = $('#scriptUrl').value.trim();
+    if(!url){ setStatus('URL을 입력해주세요.', 'err'); return; }
+    try{
+      await storageSet(URL_KEY, url);
+      setStatus('URL이 저장되었습니다.' + (hasCloudStorage ? '' : ' (이 브라우저에 저장됨)'), 'ok');
+    }catch(e){
+      setStatus('저장 실패: ' + e.message, 'err');
+    }
+  });
+
+  $('#exportBtn').addEventListener('click', async () => {
+    const url = $('#scriptUrl').value.trim();
+    if(!url){ setStatus('먼저 Apps Script URL을 입력하고 저장해주세요.', 'err'); return; }
+    setStatus('내보내는 중...');
+    try{
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: {'Content-Type':'text/plain;charset=utf-8'},
+        body: JSON.stringify({ action: 'replaceAll', entries })
+      });
+      const data = await res.json().catch(() => ({}));
+      if(data && data.ok === false) throw new Error(data.error || '알 수 없는 오류');
+      setStatus(`시트로 ${entries.length}건 내보내기 완료.`, 'ok');
+    }catch(e){
+      setStatus('내보내기 실패: ' + e.message + ' (Apps Script가 올바르게 배포되었는지 확인해주세요)', 'err');
+    }
+  });
+
+  $('#importBtn').addEventListener('click', async () => {
+    const url = $('#scriptUrl').value.trim();
+    if(!url){ setStatus('먼저 Apps Script URL을 입력하고 저장해주세요.', 'err'); return; }
+    setStatus('가져오는 중...');
+    try{
+      const res = await fetch(url + (url.includes('?') ? '&' : '?') + 'action=getAll');
+      const data = await res.json();
+      if(!Array.isArray(data.entries)) throw new Error('시트 데이터 형식이 올바르지 않습니다.');
+      entries = data.entries.map(e => ({
+        id: e.id || ('e' + Date.now() + Math.random().toString(36).slice(2,6)),
+        date: e.date, type: e.type, category: e.category,
+        item: e.item, amount: Number(e.amount)||0, memo: e.memo||''
+      }));
+      await saveEntries();
+      render();
+      setStatus(`시트에서 ${entries.length}건 가져오기 완료.`, 'ok');
+    }catch(e){
+      setStatus('가져오기 실패: ' + e.message, 'err');
+    }
+  });
+
+  loadUrl();
+  loadEntries();
+})();
+</script>
+</body>
+</html>
