@@ -306,65 +306,25 @@
     height:100%;background:var(--stamp);
   }
 
-  details.sync{
-    background:var(--paper-white);
-    border:1px solid var(--line);
-    padding:14px 16px;
-    margin-bottom:40px;
-  }
-  details.sync summary{
-    cursor:pointer;
-    font-family:'Noto Serif KR', serif;
-    font-weight:700;
-    font-size:14px;
-    color:var(--ink);
-    outline:none;
-  }
-  .sync-body{margin-top:14px;}
-  .sync-body p{
-    font-size:12.5px;
-    color:var(--ink-soft);
-    line-height:1.6;
-    margin:0 0 10px;
-  }
-  .sync-body input{
-    width:100%;
-    padding:9px 10px;
-    border:1px solid var(--line);
-    background:var(--paper);
-    font-size:13px;
-    border-radius:2px;
-    margin-bottom:10px;
-    font-family:'JetBrains Mono', monospace;
-  }
-  .sync-actions{display:flex; gap:8px; flex-wrap:wrap;}
-  .sync-actions button{
-    padding:8px 16px;
-    border:1px solid var(--ink);
-    background:var(--paper-white);
-    color:var(--ink);
-    font-size:12.5px;
-    font-weight:700;
-    cursor:pointer;
-    border-radius:2px;
-  }
-  .sync-actions button.primary{background:var(--ink);color:var(--paper-white);}
-  .sync-actions button:hover{opacity:0.85;}
-  .sync-status{
-    margin-top:10px;
-    font-size:12px;
-    color:var(--ink-soft);
-    min-height:16px;
-  }
-  .sync-status.err{color:var(--stamp);}
-  .sync-status.ok{color:var(--income);}
-
   footer{
     text-align:center;
     font-size:11px;
     color:var(--ink-soft);
     letter-spacing:1px;
   }
+  .sync-indicator{
+    display:inline-block;
+    margin-left:8px;
+    padding:2px 8px;
+    border-radius:20px;
+    font-size:10px;
+    letter-spacing:0.5px;
+    vertical-align:middle;
+  }
+  .sync-indicator.syncing{color:var(--brass);}
+  .sync-indicator.ok{color:var(--income);}
+  .sync-indicator.err{color:var(--stamp);}
+  .sync-indicator:empty{display:none;}
 </style>
 </head>
 <body>
@@ -420,35 +380,33 @@
     <div id="ledgerBody"></div>
   </div>
 
-  <details class="sync">
-    <summary>구글 시트 연동 설정</summary>
-    <div class="sync-body">
-      <p>구글 시트에서 Apps Script를 배포한 뒤 생성되는 웹 앱 URL을 아래에 입력하세요. 아래에서 내보내면 시트에 전체 기록이 기록되고, 가져오면 시트 내용으로 이 앱의 데이터를 덮어씁니다.</p>
-      <input type="text" id="scriptUrl" placeholder="https://script.google.com/macros/s/xxxxx/exec">
-      <div class="sync-actions">
-        <button type="button" class="primary" id="saveUrlBtn">URL 저장</button>
-        <button type="button" id="exportBtn">시트로 내보내기</button>
-        <button type="button" id="importBtn">시트에서 가져오기</button>
-      </div>
-      <div class="sync-status" id="syncStatus"></div>
-    </div>
-  </details>
-
-  <footer>PAPER LEDGER · 나만의 가계부</footer>
+  <footer>
+    PAPER LEDGER · 나만의 가계부
+    <span id="syncIndicator" class="sync-indicator"></span>
+  </footer>
 </div>
 
 <script>
 (function(){
+  // ============================================================
+  // 구글 시트 연동 설정 — 여기에만 코드로 입력하세요.
+  // Apps Script 배포 후 나오는 웹 앱 URL('.../exec'로 끝남)을 아래에 붙여넣으면
+  // 이후로는 버튼 없이 기록을 추가/삭제할 때마다 자동으로 시트에 동기화됩니다.
+  // 비워두면 이 브라우저 안에만 데이터가 저장됩니다.
+  // ============================================================
+  const GOOGLE_SHEETS_URL = 'https://script.google.com/macros/s/AKfycbzMlqLWLX8MYUYQXXvDPfXiYPJrmcmzBTuZc_aXWKZHP8Z6W_fdxQejWw802y6WOsopxg/exec'; // 예: 'https://script.google.com/macros/s/AKfycb.../exec'
+
   const STORE_KEY = 'ledger:entries';
-  const URL_KEY = 'ledger:scriptUrl';
   let entries = [];
   let currentMonth = new Date().toISOString().slice(0,7); // YYYY-MM
+  const sheetsEnabled = GOOGLE_SHEETS_URL.trim().length > 0;
 
   const $ = (sel) => document.querySelector(sel);
   const fmt = (n) => Math.round(n).toLocaleString('ko-KR') + '원';
 
   // Claude.ai 아티팩트 안에서는 window.storage(클라우드 저장)를 쓰고,
   // 파일을 다운로드해 단독으로 열었을 때는 localStorage로 자동 전환합니다.
+  // (구글 시트 연동을 켰다면 이 로컬 저장은 오프라인 캐시 용도로만 쓰입니다.)
   const hasCloudStorage = (typeof window.storage !== 'undefined' && window.storage !== null);
 
   async function storageGet(key){
@@ -478,7 +436,56 @@
     return true;
   }
 
+  // ---- 동기화 표시자 ----
+  const indicatorEl = () => $('#syncIndicator');
+  function setIndicator(state, text){
+    const el = indicatorEl();
+    if(!el) return;
+    el.className = 'sync-indicator' + (state ? ' ' + state : '');
+    el.textContent = text || '';
+  }
+
+  // ---- 구글 시트 통신 ----
+  async function fetchFromSheet(){
+    const res = await fetch(GOOGLE_SHEETS_URL + (GOOGLE_SHEETS_URL.includes('?') ? '&' : '?') + 'action=getAll');
+    const data = await res.json();
+    if(!Array.isArray(data.entries)) throw new Error('시트 데이터 형식이 올바르지 않습니다.');
+    return data.entries.map(e => ({
+      id: e.id || ('e' + Date.now() + Math.random().toString(36).slice(2,6)),
+      date: e.date, type: e.type, category: e.category,
+      item: e.item, amount: Number(e.amount)||0, memo: e.memo||''
+    }));
+  }
+
+  async function pushToSheet(){
+    const res = await fetch(GOOGLE_SHEETS_URL, {
+      method: 'POST',
+      headers: {'Content-Type':'text/plain;charset=utf-8'},
+      body: JSON.stringify({ action: 'replaceAll', entries })
+    });
+    const data = await res.json().catch(() => ({}));
+    if(data && data.ok === false) throw new Error(data.error || '알 수 없는 오류');
+  }
+
+  // 기록이 바뀔 때마다 자동으로 시트에 반영 (연속 입력 시 과호출 방지용 디바운스)
+  let syncTimer = null;
+  function autoSyncToSheet(){
+    if(!sheetsEnabled) return;
+    setIndicator('syncing', '동기화 중…');
+    clearTimeout(syncTimer);
+    syncTimer = setTimeout(async () => {
+      try{
+        await pushToSheet();
+        setIndicator('ok', '시트와 동기화됨');
+      }catch(e){
+        console.error('시트 동기화 실패', e);
+        setIndicator('err', '동기화 실패: ' + e.message);
+      }
+    }, 600);
+  }
+
   async function loadEntries(){
+    // 로컬 캐시를 먼저 읽어 즉시 화면을 그린 뒤, 시트 연동이 켜져 있으면 최신 데이터로 갱신합니다.
     try{
       const val = await storageGet(STORE_KEY);
       entries = val ? JSON.parse(val) : [];
@@ -486,6 +493,19 @@
       entries = [];
     }
     render();
+
+    if(sheetsEnabled){
+      setIndicator('syncing', '시트에서 불러오는 중…');
+      try{
+        entries = await fetchFromSheet();
+        await storageSet(STORE_KEY, JSON.stringify(entries));
+        render();
+        setIndicator('ok', '시트와 동기화됨');
+      }catch(e){
+        console.error('시트 불러오기 실패', e);
+        setIndicator('err', '시트 연결 실패 — 로컬 데이터로 표시 중');
+      }
+    }
   }
 
   async function saveEntries(){
@@ -493,18 +513,9 @@
       await storageSet(STORE_KEY, JSON.stringify(entries));
     }catch(e){
       console.error('저장 실패', e);
-      setGlobalWarning('저장에 실패했습니다: ' + e.message);
+      setIndicator('err', '저장 실패: ' + e.message);
     }
-  }
-
-  async function loadUrl(){
-    const val = await storageGet(URL_KEY);
-    if(val) $('#scriptUrl').value = val;
-  }
-
-  function setGlobalWarning(msg){
-    const el = $('#syncStatus');
-    if(el){ el.textContent = msg; el.className = 'sync-status err'; }
+    autoSyncToSheet();
   }
 
   function monthLabelText(ym){
@@ -631,64 +642,6 @@
   // default date = today
   $('#entryForm').date.value = new Date().toISOString().slice(0,10);
 
-  // ---- Google Sheets sync ----
-  const statusEl = $('#syncStatus');
-  function setStatus(msg, cls){
-    statusEl.textContent = msg;
-    statusEl.className = 'sync-status' + (cls ? ' ' + cls : '');
-  }
-
-  $('#saveUrlBtn').addEventListener('click', async () => {
-    const url = $('#scriptUrl').value.trim();
-    if(!url){ setStatus('URL을 입력해주세요.', 'err'); return; }
-    try{
-      await storageSet(URL_KEY, url);
-      setStatus('URL이 저장되었습니다.' + (hasCloudStorage ? '' : ' (이 브라우저에 저장됨)'), 'ok');
-    }catch(e){
-      setStatus('저장 실패: ' + e.message, 'err');
-    }
-  });
-
-  $('#exportBtn').addEventListener('click', async () => {
-    const url = $('#scriptUrl').value.trim();
-    if(!url){ setStatus('먼저 Apps Script URL을 입력하고 저장해주세요.', 'err'); return; }
-    setStatus('내보내는 중...');
-    try{
-      const res = await fetch(url, {
-        method: 'POST',
-        headers: {'Content-Type':'text/plain;charset=utf-8'},
-        body: JSON.stringify({ action: 'replaceAll', entries })
-      });
-      const data = await res.json().catch(() => ({}));
-      if(data && data.ok === false) throw new Error(data.error || '알 수 없는 오류');
-      setStatus(`시트로 ${entries.length}건 내보내기 완료.`, 'ok');
-    }catch(e){
-      setStatus('내보내기 실패: ' + e.message + ' (Apps Script가 올바르게 배포되었는지 확인해주세요)', 'err');
-    }
-  });
-
-  $('#importBtn').addEventListener('click', async () => {
-    const url = $('#scriptUrl').value.trim();
-    if(!url){ setStatus('먼저 Apps Script URL을 입력하고 저장해주세요.', 'err'); return; }
-    setStatus('가져오는 중...');
-    try{
-      const res = await fetch(url + (url.includes('?') ? '&' : '?') + 'action=getAll');
-      const data = await res.json();
-      if(!Array.isArray(data.entries)) throw new Error('시트 데이터 형식이 올바르지 않습니다.');
-      entries = data.entries.map(e => ({
-        id: e.id || ('e' + Date.now() + Math.random().toString(36).slice(2,6)),
-        date: e.date, type: e.type, category: e.category,
-        item: e.item, amount: Number(e.amount)||0, memo: e.memo||''
-      }));
-      await saveEntries();
-      render();
-      setStatus(`시트에서 ${entries.length}건 가져오기 완료.`, 'ok');
-    }catch(e){
-      setStatus('가져오기 실패: ' + e.message, 'err');
-    }
-  });
-
-  loadUrl();
   loadEntries();
 })();
 </script>
